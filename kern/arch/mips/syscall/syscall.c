@@ -35,6 +35,11 @@
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
+#include "endian.h"
+#include "copyinout.h"
+#include "uio.h"
+#include <kern/wait.h>
+#include <kern/machine/endian.h>
 
 
 /*
@@ -75,6 +80,42 @@
  * stack, starting at sp+16 to skip over the slots for the
  * registerized values, with copyin().
  */
+
+static long long concrete_int_2_ll(int high, int low)
+{
+    char tmp[10];
+#if _BYTE_ORDER == _BIG_ENDIAN
+    memcpy(tmp, &high, sizeof(int));
+    memcpy(tmp + 4, &low, sizeof(int));
+#else
+    memcpy(tmp, &low, sizeof(int));
+    memcpy(tmp + 4, &high, sizeof(int));
+
+#endif
+    return *((long long *)(tmp));
+}
+static void split_ll_2_int(int* high, int* low, long long ll)
+{
+    size_t p = (size_t)(&ll) + 0;
+    size_t p1 = (size_t) (& ll) + 4;
+#if _BYTE_ORDER == _BIG_ENDIAN
+
+    memcpy((void*)low, (void*)p, 4);
+    memcpy((void*)high, (void *)p1, 4);
+#else
+    memcpy((void*)low, (void*)p1, 4);
+    memcpy((void*)high, (void *)p, 4);
+#endif
+    return;
+}
+/*
+ * copy [sp+16 + offset,sp+16+len) to dst memory
+ */
+static int fetch_data_from_userstack(struct trapframe * tp, int offset, void* dst, int len)
+{
+    return copyin((const_userptr_t)(tp->tf_sp + 16 + offset ), dst, len);
+}
+
 void
 syscall(struct trapframe *tf)
 {
@@ -98,6 +139,9 @@ syscall(struct trapframe *tf)
 	 */
 
 	retval = 0;
+    int param3;
+    char retval_ll[8] ;
+    bool return_val_is64 = 0;
 
 	switch (callno) {
 	    case SYS_reboot:
@@ -109,11 +153,42 @@ syscall(struct trapframe *tf)
 				 (userptr_t)tf->tf_a1);
 		break;
 
-	    /* Add stuff here */
+
+        /* basic asst2 syscall */
+
+        case SYS_open:
+        err = syscall_open((const_userptr_t)tf->tf_a0, tf->tf_a1, tf->tf_a2, &retval);
+        break;
+        case SYS_read:
+        err = syscall_read(tf->tf_a0, (userptr_t)tf->tf_a1, tf->tf_a2, (size_t *)(&retval));
+        break;
+        case SYS_write:
+        err = syscall_write(tf->tf_a0, ( const_userptr_t )tf->tf_a1, tf->tf_a2, (size_t *)(&retval));
+        break;
+        case SYS_close:
+        err = syscall_close(tf->tf_a0, &retval);
+        break;
+
+        case SYS_lseek:
+        err = fetch_data_from_userstack(tf, 0, &param3, 4);
+        if (err != 0)
+        {
+            break;
+        }
+        err = syscall_lseek(tf->tf_a0, concrete_int_2_ll(tf->tf_a2, tf->tf_a3),param3,  (off_t*)(&retval_ll));
+        return_val_is64 = 1;
+
+        break;
+        case SYS_dup2:
+        err = syscall_dup2(tf->tf_a0, tf->tf_a1, &retval);
+        break;
+
+        /* end */
 
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;
+        retval = ENOSYS;
 		break;
 	}
 
@@ -124,14 +199,33 @@ syscall(struct trapframe *tf)
 		 * userlevel to a return value of -1 and the error
 		 * code in errno.
 		 */
-		tf->tf_v0 = err;
+		tf->tf_v0 =  retval < 0 ? - retval: retval;
+        if (return_val_is64)
+        {
+
+            split_ll_2_int((int *)(&tf->tf_v0), (int *)(&tf->tf_v1), *((long long *)(retval_ll)));
+        }
 		tf->tf_a3 = 1;      /* signal an error */
 	}
 	else {
-		/* Success. */
-		tf->tf_v0 = retval;
-		tf->tf_a3 = 0;      /* signal no error */
-	}
+        /*
+         * return val is 64 bit
+         */
+        if (return_val_is64 == 1)
+        {
+            split_ll_2_int((int *)(&tf->tf_v1), (int *)(&tf->tf_v0), *((long long *)(retval_ll)));
+            tf->tf_a3 = 0;
+        }
+        else
+        {
+            /* Success. */
+            /* tf->tf_v1 = */
+            tf->tf_v0 = retval;
+            tf->tf_a3 = 0;      /* signal no error */
+
+
+        }
+    }
 
 	/*
 	 * Now, advance the program counter, to avoid restarting

@@ -48,6 +48,8 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <fdtable.h>
+/* #include <file_table.h> */
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -82,6 +84,16 @@ proc_create(const char *name)
 	/* VFS fields */
 	proc->p_cwd = NULL;
 
+    int ret = init_fd_table(proc);
+    if (ret != 0)
+    {
+        spinlock_cleanup(&proc->p_lock);
+        kfree(proc->p_name);
+        kfree(proc);
+        return NULL;
+    }
+
+
 	return proc;
 }
 
@@ -105,6 +117,8 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc != NULL);
 	KASSERT(proc != kproc);
 
+
+    destroy_fd_table(proc);
 	/*
 	 * We don't take p_lock in here because we must have the only
 	 * reference to this structure. (Otherwise it would be
@@ -199,6 +213,8 @@ proc_create_runprogram(const char *name)
 	if (newproc == NULL) {
 		return NULL;
 	}
+    init_stdio(newproc->fs_struct);
+    /* setup_process_stdio(newproc); */
 
 	/* VM fields */
 
@@ -300,6 +316,13 @@ proc_getas(void)
 	return as;
 }
 
+struct proc* get_current_proc()
+{
+    KASSERT( curthread->t_proc != NULL );
+    return  curthread->t_proc;
+
+}
+
 /*
  * Change the address space of (the current) process. Return the old
  * one for later restoration or disposal.
@@ -318,3 +341,5 @@ proc_setas(struct addrspace *newas)
 	spinlock_release(&proc->p_lock);
 	return oldas;
 }
+/* struct proc* get_current_proc(); */
+

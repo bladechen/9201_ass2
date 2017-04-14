@@ -83,6 +83,8 @@ typedef __i32 __uid_t;     /* User ID */
 typedef int __nfds_t;    /* Number of file handles */
 typedef int __socklen_t;   /* Socket-related length */
 
+typedef int __atomic_t;  /* used in atomic.h */
+
 /* See note in <stdarg.h> */
 #ifdef __GNUC__
 typedef __builtin_va_list __va_list;

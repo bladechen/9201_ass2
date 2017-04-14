@@ -59,4 +59,13 @@ __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
 int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
+/* asst2 file system interface */
+int syscall_open(const_userptr_t filename, int flags, mode_t mode, int* fd_num);
+int syscall_close(int fd_num, int *retval);
+int syscall_dup2(int oldfd, int newfd, int* retval);
+int syscall_lseek(int fd, off_t pos, int whence, off_t* retval) ;
+int syscall_write(int fd, const_userptr_t buf, size_t nbytes, size_t* retval)   ;
+int syscall_read(int fd, userptr_t buf, size_t buflen, size_t * retval) ;
+
+
 #endif /* _SYSCALL_H_ */

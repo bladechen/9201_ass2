@@ -381,6 +381,8 @@ file      syscall/loadelf.c
 file      syscall/runprogram.c
 file      syscall/time_syscalls.c
 file	  syscall/file.c
+file	  syscall/kern_file.c
+file	  syscall/fdtable.c
 #
 # Startup and initialization
 #
@@ -439,6 +441,7 @@ file		test/threadtest.c
 file		test/tt3.c
 file		test/synchtest.c
 file		test/semunit.c
+file		test/file_multithreadtest.c
 file		test/kmalloctest.c
 file		test/fstest.c
 optfile net	test/nettest.c
