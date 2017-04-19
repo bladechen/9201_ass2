@@ -9,12 +9,17 @@
  * Contains some file-related maximum length constants
  */
 #include <limits.h>
+#include <list.h>
 
+struct oftable {
 
-/*
- * Put your function declarations and data types here ...
- */
+    struct vnode *vp;
+    off_t filepos;
+    int refcount;
+}
 
+struct {
 
+}
 
 #endif /* _FILE_H_ */
