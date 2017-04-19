@@ -156,8 +156,7 @@ static int __close_fd(struct files_struct* files, int fd)
     KASSERT(file != NULL);
     fdt->fd_array[fd] = NULL;
     __put_unused_fd(files, fd);
-    spinlock_release(&(files->file_lock));
-    return close_kern_file(file);
+    return close_kern_file(file, &(files->file_lock));
 }
 static void __fd_install(struct files_struct* fst, int fd, struct file* fp)
 {
@@ -230,7 +229,8 @@ static int __dup2(struct files_struct* fst, struct file* f, int newfd)
     spinlock_release(&(fst->file_lock));
     if (tofree != NULL)
     {
-        close_kern_file(tofree);
+        spinlock_acquire(&(fst->file_lock));
+        close_kern_file(tofree, &(fst->file_lock));
     }
     return 0;
 
@@ -289,13 +289,14 @@ off_t do_sys_lseek(int fd, off_t pos, int whence)
     spinlock_release(&(fst->file_lock));
 
     off_t ret = kern_file_seek(f, pos, whence);
+    spinlock_acquire(&(fst->file_lock));
     if ( ret < 0)
     {
-        close_kern_file(f);
+        close_kern_file(f, &(fst->file_lock));
         return ret;
     }
 
-    close_kern_file(f);
+    close_kern_file(f, &(fst->file_lock));
     return ret;
 
 }
@@ -319,14 +320,15 @@ int do_sys_read(int fd, char* buf, size_t buf_len)
     spinlock_release(&(fst->file_lock));
     size_t read_len = 0;
     int ret = kern_file_read(f, buf, buf_len, &read_len);
+    spinlock_acquire(&(fst->file_lock));
     if ( ret != 0)
     {
-        close_kern_file(f);
+        close_kern_file(f, &(fst->file_lock));
         KASSERT(ret < 0);
         return ret;
     }
 
-    close_kern_file(f);
+    close_kern_file(f, &(fst->file_lock));
     return read_len;
 
 }
@@ -350,28 +352,30 @@ ssize_t do_sys_write(int fd, const void *buf, size_t buf_len)
     spinlock_release(&(fst->file_lock));
     size_t write_len= 0;
     int ret = kern_file_write(f, buf, buf_len, & write_len);
+    spinlock_acquire(&(fst->file_lock));
     if (ret != 0)
     {
-        close_kern_file(f);
+        close_kern_file(f, &(fst->file_lock));
         KASSERT(ret < 0);
         return ret;
     }
 
-    close_kern_file(f);
+    close_kern_file(f, &(fst->file_lock));
     return write_len;
 
 
 }
 
 
-static void __destroy_fdt(struct fdtable* fdt)
+static void __destroy_fdt(struct fdtable* fdt, struct files_struct* fst)
 {
     for (size_t i = 0; i < fdt->max_fds; i ++)
     {
         if (__get_bit(i, fdt->open_fds_bits) )
         {
             KASSERT(fdt->fd_array[i] != NULL);
-            close_kern_file(fdt->fd_array[i]);
+            spinlock_acquire(&(fst->file_lock));
+            close_kern_file(fdt->fd_array[i], &(fst->file_lock));
             fdt->fd_array[i] = NULL;
             __clear_bit(i, fdt->open_fds_bits);
         }
@@ -473,7 +477,7 @@ void destroy_fd_table(struct proc* proc)
     KASSERT(proc != NULL);
     /* spinlock_acquire(&(proc->fs_struct->file_lock)); */
     struct fdtable* fdt = proc->fs_struct->fdt;
-    __destroy_fdt(fdt);
+    __destroy_fdt(fdt, proc->fs_struct);
     /* spinlock_release(&(proc->fs_struct->file_lock)); */
     spinlock_cleanup(&(proc->fs_struct->file_lock));
     kfree(proc->fs_struct->fdt);

@@ -1,1 +1,113 @@
-Place your design document here.
+********************************************
+*          Basic Issues
+********************************************
+
+
+1. Refering to manipulating files, there are several cases we should deal with ->
+
+    a. Process A fork process B, they should have seperated file descriptor table with exactly the same values in the table, but just after calling fork, they should share the vnode pointer which means they can interfere with each other while operating the files opened before fork.
+    b. in addition to case a, process B and process A could open the same files after fork, then manipulating that file should not interfere with each other.
+
+We design Open File Table layer(global) and File descriptor layer(per process) to deal with this issue.
+
+
+2. The open file table should support its entry referenced by different file descriptor, and if the reference count decrease to 0, it should be deleted; also there are race condition here while different process operating on the same entry in open file table.
+
+In order to achieve O(1) while deleting the entry, we use double linked list here. Also in order to make our code elegant, we add intrusive list which based on double linked list(refer to kern/include/file.h for details).
+we use atomic value for reference count to be elegant to avoid the race condition happened in vnode_decref/emufs_reclaim, because in vnode_decref, it decrease reference count, and then release the spinlock, and at this time the reference count maybe modified by other threads.
+
+
+3. In order to test whether the implementation is correct, I also write user level unit_test and kernel level multi-thread test, they are also included in the patch.
+
+
+********************************************
+*          Design Overview
+********************************************
+
+There are two parts of file system implemented in this assignment ->
+1. Open File Table layer, contains a global single instance file table which is organised by double linked list, each entry in the list has a vnode pointer, a reference count.
+2. File Descriptor layer, there is a file descriptor table for each process(struct proc) which manages allocating/deallocating file descriptor and finding open file entry via file descriptor.
+
+********************************************
+*          Design Detail
+********************************************
+
+1. Open File Table layer
+
+a. Data Structure
+    struct files_table ->
+         this is a global singleton open file table instance,
+         whose struct member consists of files_table_lock(spinlock to deal with multi-thread manipulating the files_table),
+         and the list head pointer which organises the attached list entries.
+	struct file ->
+         This is an entry in files_table,
+         which contains link_obj(struct list_head) to be attached to files_table, this is the key point of the intrusive linked list,
+         a referece count which means how many file descriptor refer to this entry,
+         a vnode pointer for file operation,
+         a lock dealing with concurrency issue of file operation,
+         and some other data members such as permission flag, pos.
+
+b. Functions
+    inc_ref_file/close_kern_file ->
+        using atomic reference count, in close_kern_file it decrease the reference count by one, and check the reference count after that equal to 0 or not(this is an atomic operation), if yes, calling vfs_close to free vnode, and remove it from (list)files_table, then free it.
+
+     do_flip_open ->
+         vfs_open file with its path passed by argument, then init file struct with the vnode pointer returned by vfs_open, after that insert it into files_table
+
+     kern_file_seek ->
+         because emufs does not provide seek api, so we should maintain pos in the file struct, what we do in this function is calculate the position by the current position and the arguments given by user. Also lock is needed to deal with race condition of manipulating pos.
+
+     kern_file_write/kern_file_read ->
+         calling VOP_WRITE and VOP_READ to achieve reading and writing, and we also use lock deal with concurrency issues while operating on the same vnode pointer.
+         another thing is updating pos in the two function after operation, if the open_flag contain O_APPEND while writing, it will set the pos at the end of the file, then begin to write.
+
+
+
+
+2. File Descriptor layer
+a. Data Structure
+Every process contains a fdtable, which contains following members,
+    max_fds indicates how many fd the table supports.
+    fd_array is the array of the file pointer to open file table entry.
+    open_fds_bits is a bitmap recording which entries in fd_array is used or not.
+    file_lock is a spinlock to deal with concurrency issue of the fd_array and open_fds_bits
+
+
+
+b. Functions
+   all the do_sys_xxx functions are following almost the same executing flow, they find open file layer pointer in fd array with the fd number, and use file_lock to solve race condition.
+   And we play a trick here, before operating the file pointer, increasing the ref count in order to avoid other threads close the file pointer.
+
+   also provide a function called init_stdio only for kernel process initial, which setup stdin, stdout and stdout file descriptor.
+
+
+
+
+********************************************
+*   Functionalities of new added files
+********************************************
+
+1. kern/include/list.h kern/include/list.c ->
+    copied from linux kernel which implements double linked list,
+    also intrusive link list is added, which is used to managing entry in Open File Table layer.
+
+2. kern/arch/mips/include/atomic.h ->
+    wrapped LL/SC instructions in mips to provide atomic function,
+    using atomic instead of spinlock to deal with concurrency issue while managing reference count of the entry in Open File Table layer.
+
+3. kern/include/fdtable.h ->
+    defination of data structure and exported functions in File Descriptor layer.
+
+4. kern/include/file.h ->
+    defination of data structure and exported functions in Open File Table layer.
+
+5. kern/syscall/file.c ->
+    preparation work before go into File Descriptor layer, such as copying user level buf to kernel buf.
+
+6. kern/syscall/fdtable.c ->
+    main implementation of File Descriptor layer.
+
+7. kern/syscall/kern_file.c ->
+    main implementation of Open File Table layer.
+
+

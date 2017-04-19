@@ -1,7 +1,7 @@
 /*
-    copy from linux kernel, doubly linked list
+    copied from linux kernel, doubly linked list
 
-    basic list for intrusive list
+    modified for intrusive list, which used in kernel global open file table
 
     Copyright (C) Shenglong Chen
 
@@ -358,7 +358,7 @@ bool is_linked(struct list_head* );
 
 
 
-void link_detach1(void* entry, struct list* l); //  list * l is only for get the struct list* in void* entry
+// void link_detach1(void* entry, struct list* l); //  list * l is only for get the struct list* in void* entry
 // void link_detach2(void* entry, int offset); //  lis
 
 

@@ -314,7 +314,7 @@ int file_multithread_test(int argc, char ** argv)
     }
 
     /* DEBUG_PRINT("enter file_multithread_test\n"); */
-    /* test_open(); */
+    test_open();
     test_open_close();
     sem_destroy(finished);
     lock_destroy(fd_slot_lock);

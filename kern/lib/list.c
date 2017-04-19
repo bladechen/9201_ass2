@@ -77,13 +77,13 @@ struct list_head* link_next(struct list_head* link)
 /*  */
 /* } */
 
-void link_detach1(void* entry, struct list* l)
-{
-     struct     list_head* tmp = list_get_link_from_entry(l, entry);
-     list_del(tmp);
-     tmp->owner = NULL;
-     return;
-}
+/* void link_detach1(void* entry, struct list* l) */
+/* { */
+/*      struct     list_head* tmp = list_get_link_from_entry(l, entry); */
+/*      list_del(tmp); */
+/*      tmp->owner = NULL; */
+/*      return; */
+/* } */
 
 /* void link_detach2(void* entry, int offset) */
 /* { */

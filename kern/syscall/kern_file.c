@@ -83,25 +83,30 @@ static void __destroy_kern_file(struct file* fs)
         vfs_close(fs->v_ptr);
         fs->v_ptr = NULL;
     }
-    fs->v_fptr = NULL;
     kfree (fs);
 
     return;
 }
 
-int close_kern_file(struct file* fs)
+int close_kern_file(struct file* fs, struct spinlock* fs_lock)
 {
     KASSERT(fs != NULL);
+    KASSERT(fs_lock != NULL);
+    KASSERT(spinlock_do_i_hold(fs_lock));
+
     /*
-     * the ref is >= 1, so do nothing but dec ref by 1
+     * when ref is >= 1, so do nothing but dec ref by 1
      */
+    // using atomic can avoid race condition happened in vnode_decref/emufs_reclaim
+    // but we still need spinlock to protect, because one guy may call close_kern_file, and go to 109 line(switeched out), another guy may at fdtable.c:313 which is before inc_ref
     if (mb_atomic_cmpxchg_dec_to_target(&(fs->ref_count), 0) == 0)
     {
+        spinlock_release(fs_lock);
         return 0;
     }
     else
     {
-
+        spinlock_release(fs_lock);
         struct files_table* ftb = fs->owner;
         KASSERT(fs->owner != NULL);
 
@@ -112,7 +117,7 @@ int close_kern_file(struct file* fs)
         fs->owner = NULL;
 
         /*
-         * TODO if the other thread is write/seek/read
+         * no one
          */
         struct vnode* v_tmp = fs->v_ptr;
         fs->v_ptr = NULL;
@@ -130,6 +135,7 @@ int close_kern_file(struct file* fs)
 static int __init_kern_file(struct file** retval, struct vnode* v, struct fs* f, int flags, mode_t mode)
 {
 
+    (void)f;
     struct file *node = kmalloc(sizeof(struct file));
     if (node == NULL)
     {
@@ -146,7 +152,6 @@ static int __init_kern_file(struct file** retval, struct vnode* v, struct fs* f,
     link_init(&node->link_obj);
     node->ref_count = 1;
     node->v_ptr = v;
-    node->v_fptr = f;
     node->f_flags = flags;
     node->f_pos = 0;
     node->owner = &g_ftb;
@@ -203,7 +208,6 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
     }
     /* DEBUG_PRINT("%p\n", v); */
     KASSERT(v != NULL);
-    /* KASSERT((size_t)v == 0x8002d6e0); */
     ret = __init_kern_file(&node, v, NULL, flags, mode);
     if (ret != 0)
     {

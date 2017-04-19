@@ -28,7 +28,7 @@
 #define CLEAR                "\e[2J"
 #define CLRLINE              "\r\e[K" //or "\e[1K\r"
 
-#define OPEN_DEBUG_PRINT 1
+#define OPEN_DEBUG_PRINT 0
 
 #ifdef OPEN_DEBUG_PRINT
 // #define DEBUG_PRINT (fmt, ...)  kprintf("[%s:%d]-<%s>: "##fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)

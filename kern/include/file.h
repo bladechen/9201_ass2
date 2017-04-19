@@ -26,7 +26,6 @@ struct file
     // struct spinlock f_lock;
 
     struct vnode* v_ptr;
-    struct fs* v_fptr; // point to file system
 
     int f_flags;
     off_t f_pos; // the current seek position of the file
@@ -47,7 +46,7 @@ struct files_table
 };
 
 void inc_ref_file(struct file* f)  ;
-int close_kern_file(struct file* fs);
+int close_kern_file(struct file* fs, struct spinlock* fs_lock);
 int do_flip_open(struct file ** fp, int dfd, char* filename, int flags, mode_t mode);
 off_t kern_file_seek(struct file* f,  off_t pos, int whence);
 ssize_t kern_file_read(struct file* f, char* buf, size_t buf_size, size_t* read_len);

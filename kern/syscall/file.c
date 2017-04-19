@@ -29,7 +29,7 @@ int syscall_open(const_userptr_t filename, int flags, mode_t mode, int* fd_num)
 
     if (tmp_filename == NULL)
     {
-        kprintf ("no enough kernel mem\n");
+        DEBUG_PRINT("no enough kernel mem\n");
         * fd_num = ENOMEM;
         return -1;
     }
@@ -37,7 +37,7 @@ int syscall_open(const_userptr_t filename, int flags, mode_t mode, int* fd_num)
     result = copyinstr(filename, tmp_filename, MAX_FILENAME_LENGTH - 1, & tmp_filename_len);
     if (result != 0)
     {
-        kprintf ("copy open filename to kernel buf error: %d\n", result);
+        DEBUG_PRINT("copy open filename to kernel buf error: %d\n", result);
         kfree(tmp_filename);
         *fd_num = result;
         return -1;

@@ -33,6 +33,11 @@
 /* atomic api in mips
  * copied from:
  * https://github.com/kamailio/kamailio */
+
+// I want to use atomic instead of spinlock, just want to experiment new things...
+// i think this does not valiate https://student.unsw.edu.au/plagiarism
+
+
 #ifndef _atomic_mips2_h
 #define _atomic_mips2_h
 
