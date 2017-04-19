@@ -37,10 +37,13 @@
  */
 
 #include <spinlock.h>
+#include <bitmap.h>
+#include <list.h>
 
 struct addrspace;
 struct thread;
 struct vnode;
+struct process_fd_table;
 
 /*
  * Process structure.
@@ -70,6 +73,11 @@ struct proc {
 	/* VFS */
 	struct vnode *p_cwd;		/* current working directory */
 
+    struct files_struct* fs_struct;
+
+
+
+
 	/* add more material here as needed */
 };
 
@@ -78,6 +86,8 @@ extern struct proc *kproc;
 
 /* Call once during system startup to allocate data structures. */
 void proc_bootstrap(void);
+
+
 
 /* Create a fresh process for use by runprogram(). */
 struct proc *proc_create_runprogram(const char *name);
@@ -97,5 +107,6 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
+struct proc* get_current_proc(void);
 
 #endif /* _PROC_H_ */

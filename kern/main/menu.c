@@ -705,6 +705,11 @@ static struct {
 	{ "fs5",	longstress },
 	{ "fs6",	createstress },
 
+
+
+
+    {"fs_mt", file_multithread_test},
+
 	{ NULL, NULL }
 };
 

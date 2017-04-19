@@ -94,6 +94,7 @@ int kmallocstress(int, char **);
 int kmalloctest3(int, char **);
 int kmalloctest4(int, char **);
 int nettest(int, char **);
+int file_multithread_test(int, char **);
 
 /* Routine for running a user-level program. */
 int runprogram(char *progname);
