@@ -81,8 +81,6 @@
  * registerized values, with copyin().
  */
 
-// I have done this assignment before i have access to https://wiki.cse.unsw.edu.au/cs3231cgi/2017s1/Asst2...
-// so write this function by myself.
 static long long concrete_int_2_ll(int high, int low)
 {
     char tmp[10];
