@@ -7,7 +7,9 @@ fdtable* fdtable_init(void)
 {
     // init fdtable datastructure
     fdtable* fdt = kmalloc(sizeof(*fdt));
-    KASSERT(fdt!=NULL);
+    if ( fdt == NULL) {
+        return NULL;
+    }
     int i = 0;
     for (;i<MAXFDTPROCESS;i++)
     {
@@ -19,7 +21,9 @@ fdtable* fdtable_init(void)
 
     // Initialize bitmaps
     fdt->fdbitmap = bitmap_create(MAXFDTPROCESS);
-    KASSERT(fdt->fdbitmap != NULL);
+    if ( fdt->fdbitmap == NULL ) {
+        return NULL;
+    }
 
     // init spinlock
     spinlock_init(&(fdt->fdlock));
@@ -29,33 +33,20 @@ fdtable* fdtable_init(void)
 
 void fdtable_destroy(fdtable *fdt)
 {
+    if ( fdt == NULL )
+    {
+        return;
+    }
+
+    if ( fdt->fdbitmap != NULL) {
     // Destroy bitmap
     bitmap_destroy(fdt->fdbitmap);
+    }
 
      // clean up spinlock
     spinlock_cleanup(&(fdt->fdlock));
 }
 
-//int fdtable_allocate(fdtable *fdt)
-//{
-//    // Allocate the next avaiable file descriptor
-//    int i;
-//    for (i = 3; i<MAXFDTPROCESS; i++)
-//    {
-//        spinlock_acquire(fdt->fdlock);
-//        // acquire lock for fdtable
-//        if( bitmap_isset(fdt->fdbitmap, i) )
-//        {
-//            // set the bitmap
-//            // initilize the values for open
-//            spinlock_release(&(fdt->fdlock));
-//            return i;
-//        }
-//        spinlock_release(&(fdt->fdlock));
-//    }
-//    // Return error if all the tables are used
-//    return -1;
-//}
 
 int fd_open(fdtable *fdt,int fd)
 {
@@ -67,7 +58,7 @@ int fd_open(fdtable *fdt,int fd)
     int i;
     for (i = 3; i<MAXFDTPROCESS; i++)
     {
-        spinlock_acquire(fdt->fdlock);
+        spinlock_acquire(&(fdt->fdlock));
         // acquire lock for fdtable
         if( bitmap_isset(fdt->fdbitmap, i) )
         {
@@ -80,14 +71,4 @@ int fd_open(fdtable *fdt,int fd)
     }
     // Return error if all the tables are used
     return -1;
-    // Check bitmap
-    if ( bitmap_isset(fdt->fdbitmap) )
-    {
-
-    }
-
-    if ( fdesc[fd] != NULL)
-        return true;
-    else
-        return false;
 }

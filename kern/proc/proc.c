@@ -49,6 +49,7 @@
 #include <addrspace.h>
 #include <vnode.h>
 
+#include <fdtable.h>
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
@@ -72,6 +73,13 @@ proc_create(const char *name)
 		kfree(proc);
 		return NULL;
 	}
+    
+    proc->fdt = fdtable_init();
+    if ( proc->fdt == NULL ) {
+        fdtable_destroy(proc->fdt);
+        kfree(proc);
+        return NULL;
+    }
 
 	proc->p_numthreads = 0;
 	spinlock_init(&proc->p_lock);
@@ -117,6 +125,9 @@ proc_destroy(struct proc *proc)
 		proc->p_cwd = NULL;
 	}
 
+    if (proc->fdt) {
+        fdtable_destroy(proc->fdt);
+    }
 	/* VM fields */
 	if (proc->p_addrspace) {
 		/*

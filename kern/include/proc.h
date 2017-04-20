@@ -37,6 +37,7 @@
  */
 
 #include <spinlock.h>
+#include "fdtable.h"
 
 struct addrspace;
 struct thread;
@@ -71,6 +72,7 @@ struct proc {
 	struct vnode *p_cwd;		/* current working directory */
 
 	/* add more material here as needed */
+    fdtable *fdt;
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
