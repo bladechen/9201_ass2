@@ -6,22 +6,21 @@
 
 #define MAXFDTPROCESS 32
 
+#include <types.h>
 #include <spinlock.h>
 #include <bitmap.h>
-#include <oftable.h>
-#include <bool.h>
+//#include <oftable.h>
 
-typedef struct _fdtable {
+typedef struct _fdtable fdtable;
+struct _fdtable {
     //needs to be a pointer to the node type of the linked list of OF tables
-    struct oftnode *fdesc[MAXFDTPROCESS];   // Pointers to 
-    mode_t fileperms[MAXFDTPROCESS];
+    struct oftnode *fdesc[MAXFDTPROCESS];   // Pointers to the nodes of oft
+    int fileperms[MAXFDTPROCESS];
     struct bitmap *fdbitmap;
     struct spinlock fdlock;
-}fdtable;
+};
 
-int fdtable_init();
-int fdtable_destroy(fdtable *fdt);
-int fdtable_allocate();
-bool isfdfree();
-
+fdtable* fdtable_init(void);
+void fdtable_destroy(fdtable *fdt);
+int fd_open(fdtable *fdt, int fd);
 #endif

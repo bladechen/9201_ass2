@@ -16,10 +16,6 @@ struct oftable {
     struct vnode *vp;
     off_t filepos;
     int refcount;
-}
-
-struct {
-
-}
+};
 
 #endif /* _FILE_H_ */
