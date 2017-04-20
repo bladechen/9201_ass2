@@ -77,6 +77,7 @@ proc_create(const char *name)
     proc->fdt = fdtable_init();
     if ( proc->fdt == NULL ) {
         fdtable_destroy(proc->fdt);
+        kfree(proc->p_name);
         kfree(proc);
         return NULL;
     }
