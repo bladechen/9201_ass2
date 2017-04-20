@@ -11,11 +11,9 @@
 #include <synch.h>
 #include <vfs.h>
 #include <vnode.h>
-#include <file.h>
 #include <syscall.h>
 #include <copyinout.h>
 
-/*
- * Add your file-related functions here ...
- */
+#include <file.h>
 
+oftlist *global_oft;
