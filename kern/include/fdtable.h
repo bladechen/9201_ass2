@@ -22,5 +22,6 @@ struct _fdtable {
 
 fdtable* fdtable_init(void);
 void fdtable_destroy(fdtable *fdt);
-int fd_open(fdtable *fdt, int fd);
+int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval);
+
 #endif

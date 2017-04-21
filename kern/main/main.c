@@ -51,7 +51,7 @@
 #include <version.h>
 #include "autoconf.h"  // for pseudoconfig
 
-
+#include <file.h>
 /*
  * These two pieces of data are maintained by the makefiles and build system.
  * buildconfig is the name of the config file the kernel was configured with.
@@ -108,6 +108,7 @@ boot(void)
 
 	/* Early initialization. */
 	ram_bootstrap();
+    oft_init(); 
 	proc_bootstrap();
 	thread_bootstrap();
 	hardclock_bootstrap();
@@ -154,7 +155,7 @@ shutdown(void)
 	vfs_clearbootfs();
 	vfs_clearcurdir();
 	vfs_unmountall();
-
+    oft_destroy();
 	thread_shutdown();
 
 	splhigh();

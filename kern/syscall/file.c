@@ -14,6 +14,25 @@
 #include <syscall.h>
 #include <copyinout.h>
 
+#include <list.h>
 #include <file.h>
 
 oftlist *global_oft;
+
+// Initialise the global list for storing the open files
+void oft_init(void)
+{
+    global_oft = kmalloc(sizeof(*global_oft));
+    KASSERT(global_oft != NULL);
+    INIT_LIST_HEAD(global_oft->head->link_obj);
+}
+
+// to destroy the list before quitting
+void oft_destroy(void)
+{
+    // Check if the list is empty
+    //
+    //
+    if( global_oft != NULL)
+        kfree(global_oft);
+}

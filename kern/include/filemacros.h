@@ -1,0 +1,6 @@
+#ifndef _FILEMACROS_H
+#define _FILEMACROS_H
+
+#define MAXFILEPATHLENGTH 256
+
+#endif

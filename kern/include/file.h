@@ -18,21 +18,25 @@
 
 typedef struct _oftnode oftnode;
 struct _oftnode {
-    struct list_head link_obj;	/* link unit of intrusive list*/
 
-    struct vnode *vptr;     // vnode access to file 
-    off_t filepos;          // File position offset
-    int refcount;           // Ref count for pointers to the same file 
+    struct vnode *vptr;         // vnode access to file 
+    off_t filepos;              // File position offset
+    int refcount;               // Ref count for pointers to the same file 
     struct spinlock oftlock;    // Lock for synchronising refcount
 
-    oftlist *owner;
+    struct list_head *link_obj;	/* link unit of intrusive list*/
 };
 
 typedef struct _oftlist oftlist;
-
 // Global list of file 
 struct _oftlist {
     oftnode *head;
     struct spinlock listlock;
 };
+
+// Initialise the global list for storing the open files
+void oft_init(void);
+// to destroy the list before quitting
+void oft_destroy(void);
+
 #endif /* _FILE_H_ */

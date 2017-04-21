@@ -2,6 +2,12 @@
 #include <fdtable.h>
 #include <lib.h>
 #include <kern/errno.h>
+#include <proc.h>
+#include <current.h>
+static struct proc * getcurproc(void)
+{
+  return curproc;
+}
 
 fdtable* fdtable_init(void)
 {
@@ -48,10 +54,8 @@ void fdtable_destroy(fdtable *fdt)
 }
 
 
-int fd_open(fdtable *fdt,int fd)
+static int get_unused_fd(fdtable *fdt)
 {
-    KASSERT(fd<MAXFDTPROCESS);
-    KASSERT(fdt != NULL);
     KASSERT(fdt->fdbitmap != NULL);
 
     // Allocate the next avaiable file descriptor
@@ -70,6 +74,27 @@ int fd_open(fdtable *fdt,int fd)
         spinlock_release(&(fdt->fdlock));
     }
     // Return error if all the tables are used
-    return -1;
+    return EMFILE;
 }
+
+int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
+{
+    // Acquire lock
+    (void )path;
+    (void )flags;
+    (void )mode;
+    (void )retval;
+    
+    int result;
+    struct proc *cp = getcurproc();
+    result = get_unused_fd(cp->fdt); 
+
+    if ( result )
+    {
+        *retval = result;
+        return -1;
+    }
+    return 0;
+}
+
 
