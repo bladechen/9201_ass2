@@ -9,7 +9,7 @@
 #include <types.h>
 #include <spinlock.h>
 #include <bitmap.h>
-//#include <oftable.h>
+#include <file.h>
 
 typedef struct _fdtable fdtable;
 struct _fdtable {

@@ -4,6 +4,8 @@
 #include <kern/errno.h>
 #include <proc.h>
 #include <current.h>
+#include <file.h>
+
 static struct proc * getcurproc(void)
 {
   return curproc;
@@ -54,22 +56,25 @@ void fdtable_destroy(fdtable *fdt)
 }
 
 
-static int get_unused_fd(fdtable *fdt)
+static int get_unused_fd(fdtable *fdt, int *fd)
 {
     KASSERT(fdt->fdbitmap != NULL);
 
     // Allocate the next avaiable file descriptor
     int i;
-    for (i = 3; i<MAXFDTPROCESS; i++)
+    for (i = 0; i<MAXFDTPROCESS; i++)
     {
-        spinlock_acquire(&(fdt->fdlock));
         // acquire lock for fdtable
-        if( bitmap_isset(fdt->fdbitmap, i) )
+        spinlock_acquire(&(fdt->fdlock));
+        // if the bit is not set then choose it
+        if( bitmap_isset(fdt->fdbitmap, i) == 0 )
         {
-            // set the bitmap
             // initilize the values for open
+            *fd = i;
+            // set the bitmap;
+            bitmap_mark(fdt->fdbitmap, i);
             spinlock_release(&(fdt->fdlock));
-            return i;
+            return 0;
         }
         spinlock_release(&(fdt->fdlock));
     }
@@ -84,16 +89,34 @@ int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
     (void )flags;
     (void )mode;
     (void )retval;
-    
+
+    // Make sure path is not NULL
     int result;
     struct proc *cp = getcurproc();
-    result = get_unused_fd(cp->fdt); 
+    int fd;
+    result = get_unused_fd(cp->fdt, &fd); 
+
+    // proceed to get unused FD
+    if ( result )
+    {
+        // Error handling
+        // FD Table size gone over
+        *retval = result;
+        return -1;
+    }
+
+    // We alloced the fd
+    result = filp_open( fd , path, flags, mode, retval);
 
     if ( result )
     {
         *retval = result;
         return -1;
     }
+
+    // if successful then create the oftnode with the vnode pointer, file pos, ref count=0,
+    // add this struct into the glob list
+
     return 0;
 }
 
