@@ -74,12 +74,70 @@ struct proc {
 	struct vnode *p_cwd;		/* current working directory */
 
     struct files_struct* fs_struct;
+/*
+ * added by bladechen, the proc should be wrapped by proc_entry
+ */
+    struct proc_entry* controller;
+
 
 
 
 
 	/* add more material here as needed */
 };
+/*
+ * added by bladechen
+ *
+ */
+
+struct proc_entry
+{
+
+    atomic_t ref_count ;
+
+    struct proc* process;
+    struct list* children_list; /* the one in this list is this proc's child */
+
+    struct list_head as_child_entry; /* this proc could also be other one's children*/
+
+    pid_t pid;
+    pid_t parent_pid;
+
+    bool exit_flag;
+
+    bool someone_wait;
+
+    int exit_code;
+    struct lock *process_lock;
+    struct cv *process_cv;
+};
+
+
+#define MAX_PROCESS_COUNT 1024 /* the maximum process supported on OS161 system, TODO dynamic allocate the slot to support more? */
+struct pidmap
+{
+    // struct spinlock relation_lock;
+    struct spinlock pidmap_lock;
+    atomic_t free_pid_slot;
+
+    struct bitmap* pidmap;
+    struct proc_entry* process_array[MAX_PROCESS_COUNT];
+};
+
+
+struct proc_entry* create_proc_entry(const char * );
+bool try_destroy_proc_entry(struct proc_entry* );
+struct proc_entry* get_proc_entry(pid_t pid);
+
+
+void proc_attach_as_child(struct proc_entry* child, struct proc_entry* father);
+
+
+void rearrange_children(struct proc_entry* entry); /* called while process exit, the children process should be put under kernel, or recycled */
+
+/*
+ * end, added by bladechen
+ */
 
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc *kproc;
@@ -88,6 +146,7 @@ extern struct proc *kproc;
 void proc_bootstrap(void);
 
 
+void proc_shutdown(void);
 
 /* Create a fresh process for use by runprogram(). */
 struct proc *proc_create_runprogram(const char *name);
@@ -106,6 +165,7 @@ struct addrspace *proc_getas(void);
 
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
+void proc_swapas(struct addrspace*);
 
 struct proc* get_current_proc(void);
 

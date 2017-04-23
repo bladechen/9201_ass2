@@ -39,6 +39,7 @@
 #include <vm.h>
 #include <mainbus.h>
 #include <syscall.h>
+#include <kern/wait.h>
 
 
 /* in exception-*.S */
@@ -46,6 +47,13 @@ extern __DEAD void asm_usermode(struct trapframe *tf);
 
 /* called only from assembler, so not declared in a header */
 void mips_trap(struct trapframe *tf);
+/* added by bladechen
+ *
+ * called while user level cause a fatal error
+ */
+extern int syscall_exit(int exitcode, int exittype, int* retval);
+// end
+
 
 
 /* Names for trap codes */
@@ -114,7 +122,16 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
 		code, sig, trapcodenames[code], epc, vaddr);
-	panic("I don't know how to handle this\n");
+
+
+    /* added by bladechen */
+    syscall_exit(sig, __WSIGNALED, NULL);
+    /* syscall_exit never return, the thread will exit
+     * end */
+
+
+
+	panic("User level core, I don't know how to handle this\n");
 }
 
 /*

@@ -50,6 +50,7 @@
 #include <addrspace.h>
 #include <mainbus.h>
 #include <vnode.h>
+#include <membar.h>
 
 
 /* Magic number used as a guard value on kernel thread stacks. */
@@ -65,6 +66,13 @@ struct wchan {
 DECLARRAY(cpu, static __UNUSED inline);
 DEFARRAY(cpu, static __UNUSED inline);
 static struct cpuarray allcpus;
+/*
+ * added by bladechen
+ * the first thread, which have the right to shutting down the system */
+static struct thread* main_thread;
+volatile int __shutting_down = false;
+// end
+
 
 /* Used to wait for secondary CPUs to come online. */
 static struct semaphore *cpu_startup_sem;
@@ -264,6 +272,10 @@ static
 void
 thread_destroy(struct thread *thread)
 {
+    if (thread == NULL)
+    {
+        return;
+    }
 	KASSERT(thread != curthread);
 	KASSERT(thread->t_state != S_RUN);
 
@@ -271,6 +283,20 @@ thread_destroy(struct thread *thread)
 	 * If you add things to struct thread, be sure to clean them up
 	 * either here or in thread_exit(). (And not both...)
 	 */
+
+/*
+     * added by bladechen
+     * thread_destroy may be called while shutting down, it will not go through thread_exit
+     */
+
+    if (thread->t_proc != NULL)
+    {
+        proc_remthread(thread);
+    }
+    /*
+     * end
+     */
+
 
 	/* Thread subsystem fields */
 	KASSERT(thread->t_proc == NULL);
@@ -362,7 +388,37 @@ thread_shutdown(void)
 	 * We should probably wait for them to stop and shut them off
 	 * on the system board.
 	 */
+    KASSERT(curthread == main_thread);
 	ipi_broadcast(IPI_OFFLINE);
+    cpu_startup_sem = sem_create("cpu_shutdown", 0);
+    for (unsigned i=0; i<cpuarray_num(&allcpus) - 1; i++) {
+		P(cpu_startup_sem);
+	}
+	sem_destroy(cpu_startup_sem);
+	cpu_startup_sem = NULL;
+
+    kprintf ("I am the last cpu0.\n");
+
+
+    /* added by bladechen,
+     * turn off int, force clear all the other threads,
+     * set __shutting_down flag in order to skip non-main threads if wakes up*/
+    int spl = splhigh();
+
+    struct thread* next = NULL;
+    spinlock_acquire(&curcpu->c_runqueue_lock);
+	do {
+		next = threadlist_remhead(&curcpu->c_runqueue);
+        thread_destroy(next);
+        // TODO destroy thread entry, but it is not that important because system is down..
+	} while (next != NULL);
+    __shutting_down = true;
+    membar_any_any();
+    spinlock_release(&curcpu->c_runqueue_lock);
+
+    splx(spl);
+
+
 }
 
 /*
@@ -383,6 +439,7 @@ thread_bootstrap(void)
 	 */
 	KASSERT(CURCPU_EXISTS() == false);
 	(void)cpu_create(0);
+    main_thread = curthread;
 	KASSERT(CURCPU_EXISTS() == true);
 
 	/* cpu_create() should also have set t_proc. */
@@ -642,6 +699,19 @@ thread_switch(threadstate_t newstate, struct wchan *wc, struct spinlock *lk)
 	curcpu->c_isidle = true;
 	do {
 		next = threadlist_remhead(&curcpu->c_runqueue);
+        /* added by bladechen
+         * due to shutting down, only kernel thread can run, others should be destroyed.
+         * kernel thread may wait for event such as I/O, so will be here.
+         */
+        if (next != NULL && next != main_thread && __shutting_down == true)
+        {
+            next = NULL;
+            thread_destroy(next);
+            // do not run other thread other than the kernel main thread, delete others from run queue, FIXME may memleek.
+            continue;
+
+        }
+
 		if (next == NULL) {
 			spinlock_release(&curcpu->c_runqueue_lock);
 			cpu_idle();
@@ -786,7 +856,11 @@ thread_exit(void)
 	 * Detach from our process. You might need to move this action
 	 * around, depending on how your wait/exit works.
 	 */
-	proc_remthread(cur);
+    if (cur->t_proc != NULL)
+    {
+        proc_remthread(cur);
+    }
+
 
 	/* Make sure we *are* detached (move this only if you're sure!) */
 	KASSERT(cur->t_proc == NULL);
@@ -1187,6 +1261,7 @@ interprocessor_interrupt(void)
 		}
 		spinlock_release(&curcpu->c_runqueue_lock);
 		kprintf("cpu%d: offline.\n", curcpu->c_number);
+		V(cpu_startup_sem);
 		cpu_halt();
 	}
 	if (bits & (1U << IPI_UNIDLE)) {

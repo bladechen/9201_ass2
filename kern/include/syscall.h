@@ -66,6 +66,17 @@ int syscall_dup2(int oldfd, int newfd, int* retval);
 int syscall_lseek(int fd, off_t pos, int whence, off_t* retval) ;
 int syscall_write(int fd, const_userptr_t buf, size_t nbytes, size_t* retval)   ;
 int syscall_read(int fd, userptr_t buf, size_t buflen, size_t * retval) ;
+// asst2 extended part
+int syscall_fork(struct trapframe *tf, pid_t* retval);
+int syscall_getpid(pid_t* retval);
+
+int syscall_wait(pid_t pid, userptr_t status, int options, int* retval) ;
+
+int syscall_exit(int exitcode, int exittype, int* retval); // exittype should be __WEXITED or __WSIGNALED or __WCORED
+
+
+int syscall_execv(const_userptr_t program, userptr_t* args, int* retval);
+
 
 
 #endif /* _SYSCALL_H_ */

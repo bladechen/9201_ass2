@@ -43,6 +43,7 @@
 #include <sfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <kern/wait.h>
 #include "opt-sfs.h"
 #include "opt-net.h"
 
@@ -92,6 +93,7 @@ cmd_progthread(void *ptr, unsigned long nargs)
 	if (result) {
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));
+        syscall_exit(0, __WEXITED, NULL);
 		return;
 	}
 
@@ -118,10 +120,11 @@ common_prog(int nargs, char **args)
 	int result;
 
 	/* Create a process for the new program to run in. */
-	proc = proc_create_runprogram(args[0] /* name */);
-	if (proc == NULL) {
+    struct proc_entry* e = create_proc_entry(args[0]);
+	if (e == NULL) {
 		return ENOMEM;
 	}
+    proc = e->process;
 
 	result = thread_fork(args[0] /* thread name */,
 			proc /* new process */,
@@ -132,6 +135,13 @@ common_prog(int nargs, char **args)
 		proc_destroy(proc);
 		return result;
 	}
+    /*
+     * added by bladechen, wait for the cmd exit, then kernel go excuting other cmd or shutting down.
+     */
+    int retval = 0;
+    result = syscall_wait(e->pid, NULL, 0, &retval);
+
+
 
 	/*
 	 * The new process will be destroyed when the program exits...
