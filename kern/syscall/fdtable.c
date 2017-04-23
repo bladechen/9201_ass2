@@ -394,6 +394,8 @@ static int __init_fdt(struct fdtable* fdt)
     {
         return -1;
     }
+
+    memset((fdt->fd_array), 0, MAX_FD_COUNT_PER_PROCESS * sizeof(struct file*));
     fdt->open_fds_bits = kmalloc(MAX_FD_COUNT_PER_PROCESS/FD_BITS * (sizeof(unsigned int)));
     if (fdt->open_fds_bits == NULL)
     {

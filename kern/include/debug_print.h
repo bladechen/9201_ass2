@@ -37,7 +37,7 @@
 // #define DEBUG_PRINT (fmt, ...) (kprintf(BLUE "<%s>-[%s:%d] ", __FUNCTION__,__FILE__, __LINE__), kprintf(__VA_ARGS__, NONE))
 // #define DEBUG_PRINT(fmt, ...) kprintf(__VA_ARGS__)
 #else
-#define DEBUG_PRINT (fmt, ...) void(0)
+#define DEBUG_PRINT dummy
 #endif
-
+static inline void dummy(const char * fmt, ...){(void)(fmt);};
 #endif
