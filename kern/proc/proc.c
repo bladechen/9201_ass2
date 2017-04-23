@@ -393,7 +393,7 @@ static void destroy_proc_entry(struct proc_entry* entry)
         i_lock = 1;
     }
 
-    if (entry->ref_count > 1)
+    if (entry->ref_count >= 1)
     {
 
         DEBUG_PRINT("proc entry: %p, pid: %d fail in destroy, ref: %d\n", entry, entry->pid, entry->ref_count);
@@ -479,12 +479,14 @@ static
 struct proc *
 proc_create(const char *name)
 {
+    DEBUG_PRINT("create new proc_create\n");
 	struct proc *proc;
 
 	proc = kmalloc(sizeof(*proc));
 	if (proc == NULL) {
 		return NULL;
 	}
+    proc->kthread = NULL;
 	/* proc->p_name = kstrdup(name); */
 	/* if (proc->p_name == NULL) { */
 	/* 	kfree(proc); */
@@ -548,6 +550,7 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc != kproc);
 
 
+    DEBUG_PRINT("destroy fd table\n");
     destroy_fd_table(proc);
 	/*
 	 * We don't take p_lock in here because we must have the only
@@ -672,14 +675,26 @@ void proc_shutdown(void)
     }
 
 
-    for (int i = 1; i < MAX_PROCESS_COUNT;i ++)
-    {
-        struct proc_entry* p = get_proc_entry(i);
-        if (p != NULL)
-            while (try_destroy_proc_entry(p) == false){};
-    }
+
+    /* for (int i = 1; i < MAX_PROCESS_COUNT;i ++) */
+    /* { */
+    /*     struct proc_entry* p = get_proc_entry(i); */
+    /*     // grandson process may still running, force kill them. */
+    /*             #<{(| (void)p; |)}># */
+    /*     if (p != NULL) */
+    /*     { */
+    /*         if (p->process != NULL) */
+    /*             p->process->p_numthreads = 0; */
+    /*             #<{(| proc_remthread(p->process->kthread); |)}># */
+    /*  */
+    /*         while (try_destroy_proc_entry(p) == false){}; */
+    /*     } */
+    /* } */
+    /*  */
+
     dealloc_pid(0, kproc->controller);
     // TODO destroy kernel proc, may cause error while delteing the kern f table
+    g_pidmap->free_pid_slot = MAX_PROCESS_COUNT;
     destroy_pidmap();
     lock_destroy(proc_lock);
     return;
@@ -764,10 +779,16 @@ proc_addthread(struct proc *proc, struct thread *t)
 void
 proc_remthread(struct thread *t)
 {
+    if (t == NULL)
+        return;
 	struct proc *proc;
 	int spl;
 
 	proc = t->t_proc;
+    if (proc == NULL)
+    {
+        return;
+    }
 	KASSERT(proc != NULL);
 
 	spinlock_acquire(&proc->p_lock);

@@ -366,7 +366,27 @@ ssize_t do_sys_write(int fd, const void *buf, size_t buf_len)
 
 }
 
+                                                                                                              int copy_proc_fd_table(struct proc* from, struct proc* to)
+{
+	KASSERT(from != NULL && to != NULL);
+	spinlock_acquire(&(from->fs_struct->file_lock));
+	for (int i = 3; i < (int)from->fs_struct->fdt->max_fds; ++ i)
+	{
+		if (__get_bit(i, from->fs_struct->fdt->open_fds_bits) )
+        {
+            KASSERT(from->fs_struct->fdt->fd_array[i] != NULL);
+            __set_open_fd(i, to->fs_struct->fdt);
+            to->fs_struct->fdt->fd_array[i] = from->fs_struct->fdt->fd_array[i];
+            inc_ref_file(to->fs_struct->fdt->fd_array[i]);
 
+        }
+
+	}
+	spinlock_release(&(from->fs_struct->file_lock));
+
+
+     return 0;
+ }
 static void __destroy_fdt(struct fdtable* fdt, struct files_struct* fst)
 {
     for (size_t i = 0; i < fdt->max_fds; i ++)
@@ -394,6 +414,8 @@ static int __init_fdt(struct fdtable* fdt)
     {
         return -1;
     }
+    DEBUG_PRINT("memset %p\n", fdt->fd_array);
+    memset((fdt->fd_array), 0, MAX_FD_COUNT_PER_PROCESS * sizeof(struct file*));
     fdt->open_fds_bits = kmalloc(MAX_FD_COUNT_PER_PROCESS/FD_BITS * (sizeof(unsigned int)));
     if (fdt->open_fds_bits == NULL)
     {
@@ -484,3 +506,4 @@ void destroy_fd_table(struct proc* proc)
     kfree(proc->fs_struct);
     return;
 }
+

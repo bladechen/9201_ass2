@@ -408,7 +408,9 @@ thread_shutdown(void)
     struct thread* next = NULL;
     spinlock_acquire(&curcpu->c_runqueue_lock);
 	do {
+
 		next = threadlist_remhead(&curcpu->c_runqueue);
+        /* proc_remthread(next); */
         thread_destroy(next);
         // TODO destroy thread entry, but it is not that important because system is down..
 	} while (next != NULL);
@@ -587,6 +589,7 @@ thread_fork(const char *name,
 		thread_destroy(newthread);
 		return result;
 	}
+    proc->kthread = newthread;
 
 	/*
 	 * Because new threads come out holding the cpu runqueue lock
@@ -705,8 +708,9 @@ thread_switch(threadstate_t newstate, struct wchan *wc, struct spinlock *lk)
          */
         if (next != NULL && next != main_thread && __shutting_down == true)
         {
-            next = NULL;
+            /* proc_remthread(next); */
             thread_destroy(next);
+            next = NULL;
             // do not run other thread other than the kernel main thread, delete others from run queue, FIXME may memleek.
             continue;
 

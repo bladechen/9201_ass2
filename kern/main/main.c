@@ -165,9 +165,9 @@ shutdown(void)
 
     thread_shutdown();
 
-    destroy_fd_table(get_current_proc());
+    /* destroy_fd_table(get_current_proc()); */
     proc_shutdown();
-    destroy_kern_file_table();
+    /* destroy_kern_file_table(); */
 
     splhigh();
 }

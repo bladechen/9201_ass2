@@ -7,6 +7,7 @@
 #include <list.h>
 
 
+
 struct file;
 #define MAX_FD_COUNT_PER_PROCESS 128
 #define FD_BITS (sizeof(unsigned int) * 8)
@@ -47,4 +48,6 @@ ssize_t do_sys_write(int fd, const void *buf, size_t nbytes);
 int init_fd_table(struct proc* cur);
 void destroy_fd_table(struct proc* proc);
 int init_stdio(struct files_struct* fst);
+struct proc;
+int copy_proc_fd_table(struct proc* from, struct proc* to);
 #endif

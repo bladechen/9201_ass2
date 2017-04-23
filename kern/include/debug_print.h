@@ -28,7 +28,7 @@
 #define CLEAR                "\e[2J"
 #define CLRLINE              "\r\e[K" //or "\e[1K\r"
 
-#define OPEN_DEBUG_PRINT 0
+// #define OPEN_DEBUG_PRINT 0
 
 #ifdef OPEN_DEBUG_PRINT
 // #define DEBUG_PRINT (fmt, ...)  kprintf("[%s:%d]-<%s>: "##fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
@@ -37,7 +37,7 @@
 // #define DEBUG_PRINT (fmt, ...) (kprintf(BLUE "<%s>-[%s:%d] ", __FUNCTION__,__FILE__, __LINE__), kprintf(__VA_ARGS__, NONE))
 // #define DEBUG_PRINT(fmt, ...) kprintf(__VA_ARGS__)
 #else
-#define DEBUG_PRINT (fmt, ...) void(0)
+#define DEBUG_PRINT dummy
 #endif
-
+static inline void dummy(const char * fmt, ...){(void)(fmt);};
 #endif

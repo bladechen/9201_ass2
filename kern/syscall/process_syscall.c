@@ -22,6 +22,7 @@
 /* #include <mips/types.h> */
 #include <mips/trapframe.h>
 #include <limits.h>
+#include "fdtable.h"
 
 #include <debug_print.h>
 #include <kern/fcntl.h>
@@ -79,6 +80,16 @@ int syscall_fork(struct trapframe *tf, pid_t* retval)
         kfree(child_tf);
         *retval = ret;
         return -1;
+    }
+
+    ret = copy_proc_fd_table(get_current_proc(), p->process);
+    if (ret != 0)
+    {
+        try_destroy_proc_entry(p);
+        kfree(child_tf);
+        *retval = ret;
+        return -1;
+
     }
 
     KASSERT(child_addr != NULL);
@@ -162,6 +173,7 @@ int syscall_exit(int exitcode, int exittype, int* retval)
     /* currently only support one thread per process in the user level, if called by kernel, it should obey this rule.
      * this function will never return, so .... */
     (void) retval;
+    DEBUG_PRINT("syscall_exit\n");
 
     struct thread* cur_t = curthread;
     pid_t pid ;//= get_current_proc()->controller->pid;
@@ -312,7 +324,7 @@ static int kexecv(char* prog, int argc, char** args)
         result = copyout(args[i],(userptr_t)user_stack, arg_len);
         if ( result != 0)
         {
-        proc_swapas(old);
+            proc_swapas(old);
             kfree(tmp_argv);
             return result;
         }
@@ -350,7 +362,11 @@ static int kexecv(char* prog, int argc, char** args)
     panic("enter_new_process returned\n");
     return 0;
 }
-
+/* int read_one_byte(userptr_t* args, ) */
+/* { */
+/*     return 0; */
+/*  */
+/* } */
 int syscall_execv(const_userptr_t program, userptr_t* args, int* retval)
 {
     /*
@@ -390,11 +406,43 @@ int syscall_execv(const_userptr_t program, userptr_t* args, int* retval)
         return -1;
     }
 
+    char just_tmp = 'a';
     int  argc = 0;
-    while (args[argc++] != (userptr_t)0x0)
+    ret = copyin((const_userptr_t)args, &just_tmp, 1);
+    if (ret != 0)
     {
+        *retval = -ret;
+        DEBUG_PRINT("invalid user args pointer\n");
+        kfree(kprog);
+        return -1;
+    }
+    while (1)
+    /* while (args[argc++] != (userptr_t)0x0) */
+    {
+/* int copyin(const_userptr_t usersrc, void *dest, size_t len); */
+        ret = copyin(args [ argc ], &just_tmp, 1);
+
+
+        if (ret != 0 && args [ argc ] == NULL)
+        {
+            DEBUG_PRINT("invalid user args pointer haha %d %d %d\n", argc, ret, just_tmp);
+            argc ++;
+            break;
+        }
+        else if (ret != 0)
+        {
+            *retval = -ret;
+            return -1;
+        }
+        argc ++;
+        /* if (just_tmp == 0) */
+        /* { */
+        /*     break; */
+        /* } */
+
 
     }
+    DEBUG_PRINT("argc %d\n", argc);
     argc  =  argc > 0 ?argc - 1: 0 ;
 
 

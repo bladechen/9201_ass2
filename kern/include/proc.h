@@ -79,6 +79,9 @@ struct proc {
  */
     struct proc_entry* controller;
 
+    // only used for userlevel prag
+    struct thread* kthread;
+
 
 
 
