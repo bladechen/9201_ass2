@@ -26,7 +26,7 @@ static oftnode * __create_node(struct vnode *vn)
 {
     oftnode *n = kmalloc(sizeof(*n));
     KASSERT(n != NULL);
-    struct list_head *head = kmalloc( sizeof(*head));
+    struct list_head *head = kmalloc(sizeof(*head));
     KASSERT(head != NULL);
     n->vptr = vn;
     n->filepos = 0;
@@ -40,7 +40,13 @@ void oft_init(void)
 {
     global_oft = kmalloc(sizeof(*global_oft));
     KASSERT(global_oft != NULL);
-    INIT_LIST_HEAD(global_oft->head->link_obj);
+    // do error check
+    global_oft->lead = kmalloc(sizeof(*(global_oft->lead)));
+    KASSERT(global_oft->lead != NULL);
+    // do error check
+    struct list *list_temp = global_oft->lead;
+    KASSERT(global_oft != NULL);
+    INIT_LIST_HEAD(&(list_temp->head));
 }
 
 int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval)
@@ -65,7 +71,7 @@ int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval)
 
     // install into the global list
     spinlock_acquire((&global_oft->listlock));
-    list_add(global_oft->head->link_obj, newnode->link_obj);
+    list_add_tail(newnode->link_obj, &(global_oft->lead->head));
     spinlock_release((&global_oft->listlock));
 
     return 0;

@@ -30,7 +30,7 @@ struct _oftnode {
 typedef struct _oftlist oftlist;
 // Global list of file 
 struct _oftlist {
-    oftnode *head;
+    struct list *lead;
     struct spinlock listlock;
 };
 

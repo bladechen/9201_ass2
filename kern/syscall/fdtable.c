@@ -82,6 +82,21 @@ static int get_unused_fd(fdtable *fdt, int *fd)
     return EMFILE;
 }
 
+static void put_fd(fdtable *fdt, int fd)
+{
+    if ( fd<0 || fd >= MAXFDTPROCESS )
+    {
+        kprintf("Invalid fd number to put back");
+        return;
+    }
+
+    if ( bitmap_isset(fdt->fdbitmap, fd) != 0)
+    {
+        bitmap_unmark(fdt->fdbitmap,fd);
+        fdt->fileperms[fd] = 0; 
+    }
+}
+
 int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
 {
     // Acquire lock
@@ -94,6 +109,7 @@ int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
     int result;
     struct proc *cp = getcurproc();
     int fd;
+    // Get unused fd
     result = get_unused_fd(cp->fdt, &fd); 
 
     // proceed to get unused FD
@@ -104,12 +120,15 @@ int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
         *retval = result;
         return -1;
     }
-
+    // Set up the file permissions in the fd table
+    cp->fdt->fileperms[fd] = flags;
     // We alloced the fd
     result = filp_open( fd , path, flags, mode, retval);
 
     if ( result )
     {
+        // put back fd
+        put_fd(cp->fdt, fd);
         *retval = result;
         return -1;
     }
