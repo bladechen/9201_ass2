@@ -51,10 +51,13 @@ int sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
 
     int result;
     result = do_sys_write(fd, buf, nbytes, retval);
-    (void)result;
-    // set up the uio struct
-    // set up iovec struct
-    // call VOP_WRITE and pass it on
+    if ( result )
+    {
+        *retval = result;
+        return -1;
+    }
+
+    *retval = result;
     return 0;
 }
 

@@ -188,11 +188,17 @@ int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
 
 static int __verifyfd(int fd)
 {
+    struct proc *cp = getcurproc();
     if(fd<0 || fd >= MAXFDTPROCESS)
     {
         return EBADF;
     }
-    return 0;
+
+    if ( bitmap_isset(cp->fdt->fdbitmap,fd) )
+    {
+        return 0; 
+    }
+    return EBADF;
 }
 static int __verifypermission(int fd, enum rwmode mode)
 {
@@ -210,30 +216,58 @@ static int __verifypermission(int fd, enum rwmode mode)
     }
     return EBADF;
 }
-int do_sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
+static oftnode * get_fd_vnode(int fd)
+{
+    struct proc *cp = getcurproc();
+    return cp->fdt->fdesc[fd]; 
+}
+
+ssize_t do_sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
 {
     (void)buf;
     (void)nbytes;
 
     int result;
     // check if the fd is valid
+    struct proc *cp = getcurproc();
+
+    spinlock_acquire(&(cp->fdt->fdlock));
     result = __verifyfd(fd);
+    spinlock_release(&(cp->fdt->fdlock));
+
     if ( result )
     {
         *retval = result;
         return -1;
     }
     // Check if permission is valid
+    spinlock_acquire(&(cp->fdt->fdlock));
     result = __verifypermission(fd, WRITE);
+    spinlock_release(&(cp->fdt->fdlock));
+
     if ( result )
     {
         *retval = result;
         return -1;
     }
-    // set up the uio struct
+    
+    spinlock_acquire(&(cp->fdt->fdlock));
+    oftnode *node = get_fd_vnode(fd);
+    spinlock_release(&(cp->fdt->fdlock));
 
-    // set up iovec struct
-    // call VOP_WRITE and pass it on
+    if ( node == NULL )
+    {
+        *retval = EBADF;
+        return -1;
+    }
+
+    ssize_t written = write_to_file(node, buf, nbytes, retval);
+    if ( written )
+    {
+        *retval = written;
+        return -1;
+    }
+
     return 0;
 }
 

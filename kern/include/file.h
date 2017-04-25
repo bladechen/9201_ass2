@@ -38,6 +38,7 @@ struct _oftlist {
 void oft_init(void);
 // Allocate node, add to global list
 int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval, oftnode **nodeptr);
+ssize_t write_to_file(oftnode *node, const_userptr_t buf, size_t nbytes, int *retval);
 // to destroy the list before quitting
 void oft_destroy(void);
 

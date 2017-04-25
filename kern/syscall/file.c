@@ -20,6 +20,7 @@
 #include <fdtable.h>
 #include <filemacros.h>
 #include <file.h>
+#include <kern/iovec.h>
 
 oftlist *global_oft;
 
@@ -92,6 +93,26 @@ int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval,
     return 0;
 }
 
+ssize_t write_to_file(oftnode *node, const_userptr_t buf, size_t nbytes, int *retval)
+{
+    (void) node;
+    (void) buf;
+    (void) nbytes;
+    (void) retval;
+    char *kbuf = kmalloc(nbytes*sizeof(char));
+    if ( kbuf == NULL )
+    {
+        *retval = ENOSPC;
+        kfree(kbuf);
+        return -1;
+    }
+    //struct uio u;
+    //struct iovec vec;
+    // set up the uio struct
+    // set up iovec struct
+    // call VOP_WRITE and pass it on
+    return 0;
+}
 //void __destroy_node (struct link_head list, struct link_head node);
 //{
 //    struct link_head temp;
