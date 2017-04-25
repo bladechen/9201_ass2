@@ -18,6 +18,7 @@
 #include <list.h>
 #include <current.h>
 #include <fdtable.h>
+#include <filemacros.h>
 #include <file.h>
 
 oftlist *global_oft;
@@ -49,25 +50,28 @@ void oft_init(void)
     INIT_LIST_HEAD(&(list_temp->head));
 }
 
-int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval)
+int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval, oftnode **nodeptr)
 {
     (void) mode;
     (void) fd;
     // do vfsopen
     int result;
     struct vnode *vn = NULL;
-
+    // Either get vnode for 0,1 and 2
     result = vfs_open( (char *) path, flags, mode, &vn);
+    
+    // Error handling
     if ( result )
     {
         // handle the open error
         *retval = result;
+        vfs_close(vn);
         return -1;
     }
 
     // If open is successful then
     // create node with the vnode pointer
-    oftnode *newnode = __create_node(vn);
+    *nodeptr = __create_node(vn);
 
     // install into the global list
     spinlock_acquire((&global_oft->listlock));

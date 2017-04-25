@@ -11,6 +11,42 @@ static struct proc * getcurproc(void)
   return curproc;
 }
 
+static void __installfd(struct *nodeptr, int fd, int flags)
+{
+    struct proc *cp = curproc;
+    cp->fdt->fdesc[fd] = nodeptr;
+    cp->fdt->fileperms[fd] = flags;
+}
+
+static void __stdio_init(fdtable* fdt)
+{
+    // attach Stderr and stdout to fdt 
+    int f1 = 0;
+    mode_t m1 = 0644;
+    const char console[] = "con:";
+    int retval;
+    int result;
+    oftnode **nodeptr;
+
+    // We alloce the fd if possible and return result
+    // add entries 0,1 and 2 into the fdtable
+
+    result = filp_open(STDIN, console, f1, m1, &retval, nodeptr);
+    KASSERT(result == 0);
+    __installfd(*nodeptr, STDIN, f1);
+    bitmap_mark(getcurproc()->fdt->fdbitmap,STDIN);
+
+    result = filp_open(STDOUT,console,f1, m1, &retval, nodeptr);
+    KASSERT(result == 0);
+    __installfd(*nodeptr, STDOUT, f1);
+    bitmap_mark(getcurproc()->fdt->fdbitmap,STDOUT);
+
+    result = filp_open(STDERR,console,f1, m1, &retval, nodeptr);
+    KASSERT(result == 0);
+    __installfd(*nodeptr, STDERR, f1);
+    bitmap_mark(getcurproc()->fdt->fdbitmap,STDERR);
+}
+
 fdtable* fdtable_init(void)
 {
     // init fdtable datastructure
@@ -36,6 +72,7 @@ fdtable* fdtable_init(void)
     // init spinlock
     spinlock_init(&(fdt->fdlock));
 
+    __stdio_init(fdt);
     return fdt;
 }
 
@@ -122,21 +159,21 @@ int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
     }
     // Set up the file permissions in the fd table
     cp->fdt->fileperms[fd] = flags;
-    // We alloced the fd
-    result = filp_open( fd , path, flags, mode, retval);
 
+    oftnode **nodeptr;
+    // We alloce the fd if possible and return result
+    // if successful then create the oftnode with the vnode pointer, file pos, ref count=0,
+    result = filp_open(fd , path, flags, mode, retval, nodeptr);
+    
     if ( result )
     {
-        // put back fd
+        // If alloc failed put back fd
         put_fd(cp->fdt, fd);
         *retval = result;
         return -1;
     }
 
-    // if successful then create the oftnode with the vnode pointer, file pos, ref count=0,
-    // add this struct into the glob list
-
+    __installfd(*nodeptr, fd, flags);
     return 0;
 }
-
 
