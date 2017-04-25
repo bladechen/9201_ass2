@@ -106,13 +106,32 @@ ssize_t write_to_file(oftnode *node, const_userptr_t buf, size_t nbytes, int *re
         kfree(kbuf);
         return -1;
     }
-    //struct uio u;
-    //struct iovec vec;
-    // set up the uio struct
-    // set up iovec struct
+    struct uio u;
+    struct iovec vec;
+    // define the iovec struct
+    vec.iov_kbase = kbuf;
+    vec.iov_ubase = (userptr_t) buf;
+    vec.iov_len = nbytes;
+    // Set up uio struct
+    uio_kinit(&vec, &u, kbuf, nbytes, node->filepos, UIO_WRITE);
+
     // call VOP_WRITE and pass it on
+    spinlock_acquire(&(node->oftlock));
+    off_t oldpos = node->filepos;
+    int result = VOP_WRITE(node->vptr, &u);
+    off_t newpos = u.uio_offset;
+    spinlock_release(&(node->oftlock));
+
+    if ( result )
+    {
+        // EFAULT	Part or all of the address space pointed to by buf is invalid
+        *retval = result;
+        return -1;
+    }
+    *retval = newpos - oldpos;
     return 0;
 }
+
 //void __destroy_node (struct link_head list, struct link_head node);
 //{
 //    struct link_head temp;

@@ -222,6 +222,13 @@ static oftnode * get_fd_vnode(int fd)
     return cp->fdt->fdesc[fd]; 
 }
 
+static void __increment_refcount(fdtable *fdt, int fd)
+{
+    spinlock_acquire(&(fdt->fdlock));
+        oftnode *node = fdt->fdesc[fd];
+        node->refcount++;
+    spinlock_release(&(fdt->fdlock));
+}
 ssize_t do_sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
 {
     (void)buf;
@@ -261,13 +268,17 @@ ssize_t do_sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
         return -1;
     }
 
+    __increment_refcount(cp->fdt, fd);
+    spinlock_acquire(&(cp->fdt->fdlock));
     ssize_t written = write_to_file(node, buf, nbytes, retval);
+    spinlock_release(&(cp->fdt->fdlock));
+
     if ( written )
     {
         *retval = written;
         return -1;
     }
-
+    *retval = written;
     return 0;
 }
 
