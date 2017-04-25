@@ -6,4 +6,8 @@
 #define STDOUT 1
 #define STDERR 2
 
+enum rwmode{
+    READ,
+    WRITE
+};
 #endif

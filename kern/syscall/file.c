@@ -67,8 +67,8 @@ int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval,
     }
     else
     {
-        // Either get vnode for 0,1 and 2
-        result = vfs_open( (char *) path, flags, mode, &vn);
+      // Either get vnode for 0,1 and 2
+      result = vfs_open( (char *) path, flags, mode, &vn);
     } 
     // Error handling
     if ( result )

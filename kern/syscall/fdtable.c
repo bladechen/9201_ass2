@@ -186,3 +186,54 @@ int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
     return 0;
 }
 
+static int __verifyfd(int fd)
+{
+    if(fd<0 || fd >= MAXFDTPROCESS)
+    {
+        return EBADF;
+    }
+    return 0;
+}
+static int __verifypermission(int fd, enum rwmode mode)
+{
+    struct proc *cp = getcurproc();
+    int perm = cp->fdt->fileperms[fd];
+    if(mode == READ)
+    {
+        if ( perm == O_RDONLY || perm == O_RDWR )
+            return 0;
+    }
+    else if(mode == WRITE)
+    {
+        if ( perm == O_WRONLY || perm == O_RDWR )
+            return 0;
+    }
+    return EBADF;
+}
+int do_sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
+{
+    (void)buf;
+    (void)nbytes;
+
+    int result;
+    // check if the fd is valid
+    result = __verifyfd(fd);
+    if ( result )
+    {
+        *retval = result;
+        return -1;
+    }
+    // Check if permission is valid
+    result = __verifypermission(fd, WRITE);
+    if ( result )
+    {
+        *retval = result;
+        return -1;
+    }
+    // set up the uio struct
+
+    // set up iovec struct
+    // call VOP_WRITE and pass it on
+    return 0;
+}
+
