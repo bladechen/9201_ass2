@@ -37,7 +37,7 @@
  */
 
 #include <spinlock.h>
-#include "fdtable.h"
+#include <fdtable.h>
 
 struct addrspace;
 struct thread;

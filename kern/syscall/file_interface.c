@@ -28,9 +28,16 @@ int sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
 
     // if we are here then we have successfully copied the filename into kernel space
     result = do_sys_open(path, flags, mode, retval);
-
+    
+    kfree(temp);
     if(fd >= 0)
-        return fd;
+    {
+        *retval = fd;
+        return 0;
+    }
     else
-        return result;
+    {
+        *retval = result;
+        return -1;
+    }
 }

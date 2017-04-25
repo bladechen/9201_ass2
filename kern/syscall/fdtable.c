@@ -5,46 +5,52 @@
 #include <proc.h>
 #include <current.h>
 #include <file.h>
+#include <kern/fcntl.h>
+#include <filemacros.h>
 
 static struct proc * getcurproc(void)
 {
   return curproc;
 }
 
-static void __installfd(struct *nodeptr, int fd, int flags)
+static void __installfd(oftnode *nodeptr, int fd, int flags)
 {
-    struct proc *cp = curproc;
+    struct proc *cp = getcurproc();
     cp->fdt->fdesc[fd] = nodeptr;
     cp->fdt->fileperms[fd] = flags;
 }
 
-static void __stdio_init(fdtable* fdt)
+int stdio_init(fdtable* fdt)
 {
     // attach Stderr and stdout to fdt 
-    int f1 = 0;
-    mode_t m1 = 0644;
-    const char console[] = "con:";
+    int f1 = O_RDONLY;
+    int f2 = O_WRONLY;
+    int f3 = O_WRONLY;
+    mode_t m1 = 0;
+    char console[] = "con:";
     int retval;
     int result;
-    oftnode **nodeptr;
+    oftnode *nodeptr;
 
     // We alloce the fd if possible and return result
     // add entries 0,1 and 2 into the fdtable
 
-    result = filp_open(STDIN, console, f1, m1, &retval, nodeptr);
+    result = filp_open(STDIN, (const_userptr_t) console, f1, m1, &retval, &nodeptr);
     KASSERT(result == 0);
-    __installfd(*nodeptr, STDIN, f1);
-    bitmap_mark(getcurproc()->fdt->fdbitmap,STDIN);
+    __installfd(nodeptr, STDIN, f1);
+    bitmap_mark(fdt->fdbitmap,STDIN);
 
-    result = filp_open(STDOUT,console,f1, m1, &retval, nodeptr);
+    result = filp_open(STDOUT,(const_userptr_t) console,f2, m1, &retval, &nodeptr);
     KASSERT(result == 0);
-    __installfd(*nodeptr, STDOUT, f1);
-    bitmap_mark(getcurproc()->fdt->fdbitmap,STDOUT);
+    __installfd(nodeptr, STDOUT, f2);
+    bitmap_mark(fdt->fdbitmap,STDOUT);
 
-    result = filp_open(STDERR,console,f1, m1, &retval, nodeptr);
+    result = filp_open(STDERR,(const_userptr_t) console,f3, m1, &retval, &nodeptr);
     KASSERT(result == 0);
-    __installfd(*nodeptr, STDERR, f1);
-    bitmap_mark(getcurproc()->fdt->fdbitmap,STDERR);
+    __installfd(nodeptr, STDERR, f3);
+    bitmap_mark(fdt->fdbitmap,STDERR);
+
+    return 0;
 }
 
 fdtable* fdtable_init(void)
@@ -72,7 +78,6 @@ fdtable* fdtable_init(void)
     // init spinlock
     spinlock_init(&(fdt->fdlock));
 
-    __stdio_init(fdt);
     return fdt;
 }
 
@@ -108,7 +113,7 @@ static int get_unused_fd(fdtable *fdt, int *fd)
         {
             // initilize the values for open
             *fd = i;
-            // set the bitmap;
+            // set the bitmap as marked
             bitmap_mark(fdt->fdbitmap, i);
             spinlock_release(&(fdt->fdlock));
             return 0;
@@ -119,7 +124,7 @@ static int get_unused_fd(fdtable *fdt, int *fd)
     return EMFILE;
 }
 
-static void put_fd(fdtable *fdt, int fd)
+static void putback_fd(fdtable *fdt, int fd)
 {
     if ( fd<0 || fd >= MAXFDTPROCESS )
     {
@@ -127,11 +132,14 @@ static void put_fd(fdtable *fdt, int fd)
         return;
     }
 
+    // this lock is not really necessary i think
+    spinlock_acquire(&(fdt->fdlock));
     if ( bitmap_isset(fdt->fdbitmap, fd) != 0)
     {
         bitmap_unmark(fdt->fdbitmap,fd);
         fdt->fileperms[fd] = 0; 
     }
+    spinlock_release(&(fdt->fdlock));
 }
 
 int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
@@ -159,21 +167,22 @@ int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
     }
     // Set up the file permissions in the fd table
     cp->fdt->fileperms[fd] = flags;
-
-    oftnode **nodeptr;
+    oftnode *nodeptr;
     // We alloce the fd if possible and return result
     // if successful then create the oftnode with the vnode pointer, file pos, ref count=0,
-    result = filp_open(fd , path, flags, mode, retval, nodeptr);
+    result = filp_open(fd , path, flags, mode, retval, &nodeptr);
     
     if ( result )
     {
         // If alloc failed put back fd
-        put_fd(cp->fdt, fd);
+        putback_fd(cp->fdt, fd);
+        // reset file permissions
+        cp->fdt->fileperms[fd] = 0;
         *retval = result;
         return -1;
     }
 
-    __installfd(*nodeptr, fd, flags);
+    __installfd(nodeptr, fd, flags);
     return 0;
 }
 

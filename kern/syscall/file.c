@@ -33,6 +33,7 @@ static oftnode * __create_node(struct vnode *vn)
     n->filepos = 0;
     n->refcount = 1;
     n->link_obj = head;
+    link_init((n->link_obj));
     return n;
 }
 
@@ -57,9 +58,18 @@ int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval,
     // do vfsopen
     int result;
     struct vnode *vn = NULL;
-    // Either get vnode for 0,1 and 2
-    result = vfs_open( (char *) path, flags, mode, &vn);
-    
+
+    if ( fd == STDIN || fd == STDOUT || fd == STDERR )
+    {
+        char *console = kstrdup("con:");
+        result = vfs_open(console, flags, mode, &vn);
+        kfree(console);
+    }
+    else
+    {
+        // Either get vnode for 0,1 and 2
+        result = vfs_open( (char *) path, flags, mode, &vn);
+    } 
     // Error handling
     if ( result )
     {
@@ -71,11 +81,12 @@ int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval,
 
     // If open is successful then
     // create node with the vnode pointer
+    // to return
     *nodeptr = __create_node(vn);
 
     // install into the global list
     spinlock_acquire((&global_oft->listlock));
-    list_add_tail(newnode->link_obj, &(global_oft->lead->head));
+    list_add_tail(&(global_oft->lead->head),((*nodeptr)->link_obj));
     spinlock_release((&global_oft->listlock));
 
     return 0;

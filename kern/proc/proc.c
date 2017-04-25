@@ -208,6 +208,7 @@ proc_create_runprogram(const char *name)
 	struct proc *newproc;
 
 	newproc = proc_create(name);
+    stdio_init(newproc->fdt);
 	if (newproc == NULL) {
 		return NULL;
 	}

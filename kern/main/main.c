@@ -51,6 +51,7 @@
 #include <version.h>
 #include "autoconf.h"  // for pseudoconfig
 
+#include <fdtable.h>
 #include <file.h>
 /*
  * These two pieces of data are maintained by the makefiles and build system.
@@ -133,6 +134,7 @@ boot(void)
 	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
 	vfs_setbootfs("emu0");
 
+    stdio_init(curproc->fdt);
 	kheap_nextgeneration();
 
 	/*

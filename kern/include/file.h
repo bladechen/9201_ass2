@@ -37,7 +37,7 @@ struct _oftlist {
 // Initialise the global list for storing the open files
 void oft_init(void);
 // Allocate node, add to global list
-int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval);
+int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval, oftnode **nodeptr);
 // to destroy the list before quitting
 void oft_destroy(void);
 
