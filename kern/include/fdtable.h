@@ -25,4 +25,5 @@ void fdtable_destroy(fdtable *fdt);
 int stdio_init(fdtable* fdt);
 int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval);
 ssize_t do_sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval);
+ssize_t do_sys_read(int fd, userptr_t buf, size_t nbytes, int *retval);
 #endif

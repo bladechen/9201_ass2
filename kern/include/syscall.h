@@ -62,4 +62,5 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 /* Assn 2 syscalls implementation */
 int sys_open(const_userptr_t path, int flags, mode_t mode, int* retval);
 int sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval);
+int sys_read(int fd, userptr_t buf, size_t nbytes, int *retval);
 #endif /* _SYSCALL_H_ */

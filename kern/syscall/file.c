@@ -35,6 +35,7 @@ static oftnode * __create_node(struct vnode *vn)
     n->refcount = 1;
     n->link_obj = head;
     link_init((n->link_obj));
+    n->filelock = lock_create("Lock for a file pointer in OFT");
     return n;
 }
 
@@ -46,6 +47,7 @@ void oft_init(void)
     // do error check
     global_oft->lead = kmalloc(sizeof(*(global_oft->lead)));
     KASSERT(global_oft->lead != NULL);
+
     // do error check
     struct list *list_temp = global_oft->lead;
     KASSERT(global_oft != NULL);
@@ -85,6 +87,18 @@ int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval,
     // to return
     *nodeptr = __create_node(vn);
 
+    // if in append mode make the file position the offset of the end of file
+    if ( flags & O_APPEND )
+    {
+        struct stat s;
+        result = VOP_STAT((*nodeptr)->vptr, &s);
+        if ( result )
+        {
+            *retval = result;
+            return -1;
+        }
+        (*nodeptr)->filepos = s.st_size; 
+    }
     // install into the global list
     spinlock_acquire((&global_oft->listlock));
     list_add_tail(&(global_oft->lead->head),((*nodeptr)->link_obj));
@@ -93,49 +107,65 @@ int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval,
     return 0;
 }
 
-ssize_t write_to_file(oftnode *node, const_userptr_t buf, size_t nbytes, int *retval)
+ssize_t write_to_file(oftnode *node, void *kbuf, size_t nbytes, int *retval)
 {
-    (void) node;
-    (void) buf;
-    (void) nbytes;
-    (void) retval;
-    char *kbuf = kmalloc(nbytes*sizeof(char));
-    if ( kbuf == NULL )
-    {
-        *retval = ENOSPC;
-        kfree(kbuf);
-        return -1;
-    }
     struct uio u;
     struct iovec vec;
-    // define the iovec struct
-    vec.iov_kbase = kbuf;
-    vec.iov_ubase = (userptr_t) buf;
-    vec.iov_len = nbytes;
     // Set up uio struct
-    uio_kinit(&vec, &u, kbuf, nbytes, node->filepos, UIO_WRITE);
+    uio_kinit(&vec, &u,(void *) kbuf, nbytes, node->filepos, UIO_WRITE);
+
+    //kprintf("%s",kbuf);
 
     // call VOP_WRITE and pass it on
-    spinlock_acquire(&(node->oftlock));
+    //spinlock_acquire(&(node->oftlock));
+    lock_acquire(node->filelock);
     off_t oldpos = node->filepos;
     int result = VOP_WRITE(node->vptr, &u);
-    off_t newpos = u.uio_offset;
-    spinlock_release(&(node->oftlock));
+    node->filepos = u.uio_offset;
+    node->refcount--;
 
     if ( result )
     {
         // EFAULT	Part or all of the address space pointed to by buf is invalid
         *retval = result;
+        lock_release(node->filelock);
         return -1;
     }
-    *retval = newpos - oldpos;
+    *retval = node->filepos - oldpos;
+    lock_release(node->filelock);
     return 0;
 }
 
+ssize_t read_from_file(oftnode *node, void * kbuf, size_t nbytes, int *retval)
+{
+    struct uio u;
+    struct iovec vec;
+    // Set up uio struct
+    uio_kinit(&vec, &u,(void *) kbuf, nbytes, node->filepos, UIO_READ);
+
+    // call VOP_READ and pass it on
+    lock_acquire(node->filelock);
+    off_t oldpos = node->filepos;
+    int result = VOP_READ(node->vptr, &u);
+    node->filepos = u.uio_offset;
+    node->refcount--;
+
+    if ( result )
+    {
+        // EFAULT	Part or all of the address space pointed to by buf is invalid
+        *retval = result;
+        lock_release(node->filelock);
+        return -1;
+    }
+    *retval = node->filepos - oldpos;
+    lock_release(node->filelock);
+    return 0;
+}
 //void __destroy_node (struct link_head list, struct link_head node);
 //{
 //    struct link_head temp;
     //list_for_each_safe(node, temp, list);
+    //lock_destroy(global_oft->filelock);
 //}
 
 // to destroy the list before quitting
@@ -146,4 +176,5 @@ void oft_destroy(void)
     //
     if( global_oft != NULL)
         kfree(global_oft);
+
 }

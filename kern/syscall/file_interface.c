@@ -10,12 +10,11 @@
 int sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
 {
     char *temp;
-    int fd=0;
     int result;
     size_t actual;
     // Make a heap allocation to avoid it going on the stack
     temp = kmalloc( MAXFILEPATHLENGTH * sizeof(char));
-    size_t len = sizeof(temp);
+    size_t len = MAXFILEPATHLENGTH;
     // copy name from kernel to user space
     result = copyinstr(path, temp, len , &actual);
     if ( result )
@@ -30,16 +29,11 @@ int sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
     result = do_sys_open(path, flags, mode, retval);
     
     kfree(temp);
-    if(fd >= 0)
-    {
-        *retval = fd;
+    if( *retval >= 0)
         return 0;
-    }
-    else
-    {
-        *retval = result;
-        return -1;
-    }
+
+    *retval = result;
+    return -1;
 }
 
 int sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
@@ -57,7 +51,18 @@ int sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
         return -1;
     }
 
-    *retval = result;
     return 0;
 }
 
+int sys_read(int fd, userptr_t buf, size_t nbytes, int *retval)
+{
+    int result;
+
+    result = do_sys_read(fd, buf, nbytes, retval);
+    if ( result )
+    {
+        *retval = result;
+        return -1;
+    }
+    return 0;
+}

@@ -55,6 +55,12 @@
  */
 struct proc *kproc;
 
+struct proc * getcurproc(void)
+{
+    KASSERT( curthread->t_proc != NULL );
+    return  curthread->t_proc;
+}
+
 /*
  * Create a proc structure.
  */

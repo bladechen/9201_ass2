@@ -23,7 +23,7 @@ struct _oftnode {
     off_t filepos;              // File position offset
     int refcount;               // Ref count for pointers to the same file 
     struct spinlock oftlock;    // Lock for synchronising refcount
-
+    struct lock *filelock;
     struct list_head *link_obj;	/* link unit of intrusive list*/
 };
 
@@ -38,7 +38,8 @@ struct _oftlist {
 void oft_init(void);
 // Allocate node, add to global list
 int filp_open(int fd, const_userptr_t path, int flags, mode_t mode, int* retval, oftnode **nodeptr);
-ssize_t write_to_file(oftnode *node, const_userptr_t buf, size_t nbytes, int *retval);
+ssize_t write_to_file(oftnode *node, void * kbuf, size_t nbytes, int *retval);
+ssize_t read_from_file(oftnode *node, void * kbuf, size_t nbytes, int *retval);
 // to destroy the list before quitting
 void oft_destroy(void);
 

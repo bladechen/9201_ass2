@@ -7,17 +7,14 @@
 #include <file.h>
 #include <kern/fcntl.h>
 #include <filemacros.h>
+#include <copyinout.h>
 
-static struct proc * getcurproc(void)
+static void __installfd(fdtable *fdt, oftnode *nodeptr, int fd, int flags)
 {
-  return curproc;
-}
-
-static void __installfd(oftnode *nodeptr, int fd, int flags)
-{
-    struct proc *cp = getcurproc();
-    cp->fdt->fdesc[fd] = nodeptr;
-    cp->fdt->fileperms[fd] = flags;
+    spinlock_acquire(&(fdt->fdlock));
+    fdt->fdesc[fd] = nodeptr;
+    fdt->fileperms[fd] = flags;
+    spinlock_release(&(fdt->fdlock));
 }
 
 int stdio_init(fdtable* fdt)
@@ -37,17 +34,17 @@ int stdio_init(fdtable* fdt)
 
     result = filp_open(STDIN, (const_userptr_t) console, f1, m1, &retval, &nodeptr);
     KASSERT(result == 0);
-    __installfd(nodeptr, STDIN, f1);
+    __installfd(fdt, nodeptr, STDIN, f1);
     bitmap_mark(fdt->fdbitmap,STDIN);
 
     result = filp_open(STDOUT,(const_userptr_t) console,f2, m1, &retval, &nodeptr);
     KASSERT(result == 0);
-    __installfd(nodeptr, STDOUT, f2);
+    __installfd(fdt, nodeptr, STDOUT, f2);
     bitmap_mark(fdt->fdbitmap,STDOUT);
 
     result = filp_open(STDERR,(const_userptr_t) console,f3, m1, &retval, &nodeptr);
     KASSERT(result == 0);
-    __installfd(nodeptr, STDERR, f3);
+    __installfd(fdt, nodeptr, STDERR, f3);
     bitmap_mark(fdt->fdbitmap,STDERR);
 
     return 0;
@@ -104,13 +101,15 @@ static int get_unused_fd(fdtable *fdt, int *fd)
 
     // Allocate the next avaiable file descriptor
     int i;
+    spinlock_acquire(&(fdt->fdlock));
     for (i = 0; i<MAXFDTPROCESS; i++)
     {
         // acquire lock for fdtable
-        spinlock_acquire(&(fdt->fdlock));
         // if the bit is not set then choose it
         if( bitmap_isset(fdt->fdbitmap, i) == 0 )
         {
+            //int a = bitmap_isset(fdt->fdbitmap, i);
+            //kprintf("%d\n",a);
             // initilize the values for open
             *fd = i;
             // set the bitmap as marked
@@ -118,8 +117,8 @@ static int get_unused_fd(fdtable *fdt, int *fd)
             spinlock_release(&(fdt->fdlock));
             return 0;
         }
-        spinlock_release(&(fdt->fdlock));
     }
+    spinlock_release(&(fdt->fdlock));
     // Return error if all the tables are used
     return EMFILE;
 }
@@ -181,53 +180,49 @@ int do_sys_open(const_userptr_t path, int flags, mode_t mode, int* retval)
         *retval = result;
         return -1;
     }
-
-    __installfd(nodeptr, fd, flags);
+    
+    __installfd(cp->fdt, nodeptr, fd, flags);
+    *retval = fd;
     return 0;
 }
 
-static int __verifyfd(int fd)
+static int __verifyfd(fdtable *fdt, int fd)
 {
-    struct proc *cp = getcurproc();
     if(fd<0 || fd >= MAXFDTPROCESS)
     {
         return EBADF;
     }
 
-    if ( bitmap_isset(cp->fdt->fdbitmap,fd) )
+    if ( bitmap_isset(fdt->fdbitmap,fd) )
     {
         return 0; 
     }
     return EBADF;
 }
-static int __verifypermission(int fd, enum rwmode mode)
+static int __verifypermission(fdtable *fdt,int fd, enum rwmode mode)
 {
-    struct proc *cp = getcurproc();
-    int perm = cp->fdt->fileperms[fd];
+    int perm = fdt->fileperms[fd];
     if(mode == READ)
     {
-        if ( perm == O_RDONLY || perm == O_RDWR )
+        if ( (perm & O_RDONLY) == 0 || (perm & O_RDWR) !=0  )
             return 0;
     }
     else if(mode == WRITE)
     {
-        if ( perm == O_WRONLY || perm == O_RDWR )
+        if ( (perm & O_WRONLY) != 0 || (perm & O_RDWR)!= 0 )
             return 0;
     }
     return EBADF;
 }
-static oftnode * get_fd_vnode(int fd)
+static oftnode * get_fd_vnode(fdtable *fdt, int fd)
 {
-    struct proc *cp = getcurproc();
-    return cp->fdt->fdesc[fd]; 
+    return fdt->fdesc[fd]; 
 }
 
 static void __increment_refcount(fdtable *fdt, int fd)
 {
-    spinlock_acquire(&(fdt->fdlock));
-        oftnode *node = fdt->fdesc[fd];
-        node->refcount++;
-    spinlock_release(&(fdt->fdlock));
+    oftnode *node = fdt->fdesc[fd];
+    node->refcount++;
 }
 ssize_t do_sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
 {
@@ -237,48 +232,133 @@ ssize_t do_sys_write(int fd, const_userptr_t buf, size_t nbytes, int *retval)
     int result;
     // check if the fd is valid
     struct proc *cp = getcurproc();
+    fdtable *fdt = cp->fdt;
 
-    spinlock_acquire(&(cp->fdt->fdlock));
-    result = __verifyfd(fd);
-    spinlock_release(&(cp->fdt->fdlock));
+    spinlock_acquire(&(fdt->fdlock));
+    result = __verifyfd(fdt,fd);
 
     if ( result )
     {
         *retval = result;
+        spinlock_release(&(fdt->fdlock));
         return -1;
     }
     // Check if permission is valid
-    spinlock_acquire(&(cp->fdt->fdlock));
-    result = __verifypermission(fd, WRITE);
-    spinlock_release(&(cp->fdt->fdlock));
+    result = __verifypermission(fdt, fd, WRITE);
 
     if ( result )
     {
         *retval = result;
+        spinlock_release(&(fdt->fdlock));
         return -1;
     }
     
-    spinlock_acquire(&(cp->fdt->fdlock));
-    oftnode *node = get_fd_vnode(fd);
-    spinlock_release(&(cp->fdt->fdlock));
+    oftnode *node = get_fd_vnode(fdt,fd);
 
     if ( node == NULL )
     {
         *retval = EBADF;
+        spinlock_release(&(fdt->fdlock));
         return -1;
     }
 
-    __increment_refcount(cp->fdt, fd);
-    spinlock_acquire(&(cp->fdt->fdlock));
-    ssize_t written = write_to_file(node, buf, nbytes, retval);
-    spinlock_release(&(cp->fdt->fdlock));
+    __increment_refcount(fdt, fd);
+    spinlock_release(&(fdt->fdlock));
 
-    if ( written )
+    char *kbuf = kmalloc((nbytes+1)*sizeof(char));
+    if ( kbuf == NULL )
     {
-        *retval = written;
+        *retval = ENOSPC;
+        kfree(kbuf);
         return -1;
     }
-    *retval = written;
+
+    result = copyin(buf,kbuf, nbytes+1);
+    if ( result )
+    {
+        *retval = result;
+        kfree(kbuf);
+        return -1;
+    }
+
+    result = write_to_file(node, kbuf, nbytes, retval);
+
+    if ( result )
+    {
+        *retval = result;
+        kfree(kbuf);
+        return -1;
+    }
+
+    kfree(kbuf);
     return 0;
 }
 
+ssize_t do_sys_read(int fd, userptr_t buf, size_t nbytes, int *retval)
+{
+
+    (void)buf;
+    (void)nbytes;
+
+    int result;
+    // check if the fd is valid
+    struct proc *cp = getcurproc();
+    fdtable *fdt = cp->fdt;
+
+    spinlock_acquire(&(fdt->fdlock));
+    result = __verifyfd(fdt,fd);
+
+    if ( result )
+    {
+        *retval = result;
+        spinlock_release(&(fdt->fdlock));
+        return -1;
+    }
+    // Check if permission is valid
+    result = __verifypermission(fdt, fd, READ);
+
+    if ( result )
+    {
+        *retval = result;
+        spinlock_release(&(fdt->fdlock));
+        return -1;
+    }
+    
+    oftnode *node = get_fd_vnode(fdt,fd);
+
+    if ( node == NULL )
+    {
+        *retval = EBADF;
+        spinlock_release(&(fdt->fdlock));
+        return -1;
+    }
+    // increment ref count for file
+    __increment_refcount(fdt, fd);
+    spinlock_release(&(fdt->fdlock));
+
+    char *kbuf = kmalloc((nbytes+1)*sizeof(char));
+    if ( kbuf == NULL )
+    {
+        *retval = ENOSPC;
+        kfree(kbuf);
+        return -1;
+    }
+    result = read_from_file(node, kbuf, nbytes, retval);
+    if ( result )
+    {
+        //error on read then return -1
+        *retval = result;
+        kfree(kbuf);
+        return -1;
+    }
+    result = copyout(kbuf, buf, *retval + 1);
+    if ( result )
+    {
+        // if error on copy return -1
+        *retval = result;
+        kfree(kbuf);
+        return -1;
+    }
+    kfree(kbuf);
+    return 0;
+}
