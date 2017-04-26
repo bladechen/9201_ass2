@@ -42,7 +42,7 @@ int syscall_open(const_userptr_t filename, int flags, mode_t mode, int* fd_num)
         *fd_num = result;
         return -1;
     }
-    kprintf("copy filename success: %s\n", (char*)tmp_filename);
+    DEBUG_PRINT("copy filename success: %s\n", (char*)tmp_filename);
     result  = do_sys_open(-1, tmp_filename, flags, mode, get_current_proc()->fs_struct);
     kfree(tmp_filename);
     if (result < 0)
@@ -67,7 +67,7 @@ int syscall_read(int fd, userptr_t buf, size_t buflen, size_t* retval)
 
     if (tmp_kern_buf == NULL)
     {
-        kprintf ("no enough kernel mem\n");
+        DEBUG_PRINT ("no enough kernel mem\n");
         *retval  = ENOMEM;
         /* return -ENOMEM; */
         return -1;
@@ -76,7 +76,7 @@ int syscall_read(int fd, userptr_t buf, size_t buflen, size_t* retval)
     int result = do_sys_read(fd, tmp_kern_buf, buflen);
     if (result < 0)
     {
-        kprintf ("do sys read errorn\n");
+        DEBUG_PRINT ("do sys read errorn\n");
         kfree(tmp_kern_buf);
         *retval = -result;
         return -1;
@@ -119,7 +119,7 @@ int syscall_write(int fd,  const_userptr_t buf, size_t nbytes, size_t* retval)
 
     if (tmp_kern_buf == NULL)
     {
-        kprintf ("no enough kernel mem\n");
+        DEBUG_PRINT ("no enough kernel mem\n");
         *retval = ENOMEM;
         return -1;
     }
@@ -127,13 +127,13 @@ int syscall_write(int fd,  const_userptr_t buf, size_t nbytes, size_t* retval)
     int result = copyin(buf, tmp_kern_buf,  nbytes);
     if (result != 0)
     {
-        kprintf ("copy write user buf to  kernel buf error: %d\n", result);
+        DEBUG_PRINT ("copy write user buf to  kernel buf error: %d\n", result);
         kfree(tmp_kern_buf);
         *retval = result;
         return -1;
     }
     tmp_kern_buf[nbytes] = 0;
-    /* kprintf ("copyin[%s], %d\n", (char*) tmp_kern_buf, nbytes); */
+    /* DEBUG_PRINT ("copyin[%s], %d\n", (char*) tmp_kern_buf, nbytes); */
     result = do_sys_write(fd, tmp_kern_buf, nbytes);
     if (result < 0)
     {
